@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 import logging
 
 from aiohttp.web import HTTPClientError
-import async_timeout
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
@@ -171,43 +170,41 @@ class AirboltCoordinator(DataUpdateCoordinator):
             # Note: asyncio.TimeoutError and aiohttp.ClientError are already
             # handled by the data update coordinator.
             _LOGGER.debug("Beginning background update")
-            async with async_timeout.timeout(10):
-                # Grab active context variables to limit data required to be fetched from API
-                # Note: using context is not required if there is no need or ability to limit
-                # data retrieved from API.
-                listening_tracker_ids: set[str] = set(self.async_contexts())
-                coordinator_data: dict[str, dict[str, bool]] = collections.defaultdict(
-                    dict
-                )
+            # async with async_timeout.timeout(10):
+            # Grab active context variables to limit data required to be fetched from API
+            # Note: using context is not required if there is no need or ability to limit
+            # data retrieved from API.
+            listening_tracker_ids: set[str] = set(self.async_contexts())
+            coordinator_data: dict[str, dict[str, bool]] = collections.defaultdict(dict)
 
-                # discover devices
-                for discovered_device in await self._hub.client.find_devices():
-                    tracker_id = discovered_device.device_uuid
-                    if tracker_id in self._hub.devices:
-                        coordinator_data[tracker_id]["device"] = self._hub.devices[
-                            tracker_id
-                        ].update_device(discovered_device)
-                    else:
-                        # for later: notify hass of newly discovered item
-                        _LOGGER.debug(
-                            "Discovered new device %s: %s",
-                            tracker_id,
-                            discovered_device.name,
-                        )
-                        self._hub.devices[tracker_id] = Tracker(discovered_device)
-
-                # update trackers that are listening for updates
-                for tracker_id in listening_tracker_ids:
-                    tracker = self._hub.devices[tracker_id]
-                    page = await self._hub.client.get_device_history_page(
-                        tracker.id, page=1, page_size=1
+            # discover devices
+            for discovered_device in await self._hub.client.find_devices():
+                tracker_id = discovered_device.device_uuid
+                if tracker_id in self._hub.devices:
+                    coordinator_data[tracker_id]["device"] = self._hub.devices[
+                        tracker_id
+                    ].update_device(discovered_device)
+                else:
+                    # for later: notify hass of newly discovered item
+                    _LOGGER.debug(
+                        "Discovered new device %s: %s",
+                        tracker_id,
+                        discovered_device.name,
                     )
-                    if page.success:
-                        coordinator_data[tracker_id]["location"] = tracker.update(
-                            page.data[0]
-                        )
+                    self._hub.devices[tracker_id] = Tracker(discovered_device)
 
-                return coordinator_data
+            # update trackers that are listening for updates
+            for tracker_id in listening_tracker_ids:
+                tracker = self._hub.devices[tracker_id]
+                page = await self._hub.client.get_device_history_page(
+                    tracker.id, page=1, page_size=1
+                )
+                if page.success:
+                    coordinator_data[tracker_id]["location"] = tracker.update_location(
+                        page.data[0]
+                    )
+
+            return coordinator_data
         # except ApiAuthError as err:
         #    # Raising ConfigEntryAuthFailed will cancel future updates
         #    # and start a config flow with SOURCE_REAUTH (async_step_reauth)

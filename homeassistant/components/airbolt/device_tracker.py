@@ -62,7 +62,7 @@ class LocationTracker(CoordinatorEntity, TrackerEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        data: dict[str, dict[str, bool]] = self.coordinator.data
+        data: dict[str, dict[str, bool]] = self._hub.coordinator.data
         updated = any(updated for updated in data[self._tracker.id].values())
         _LOGGER.debug("Device %s updated: %r", self._tracker.id, updated)
         if updated:
