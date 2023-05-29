@@ -23,6 +23,7 @@ FLOWS = {
         "advantage_air",
         "aemet",
         "agent_dvr",
+        "airbolt",
         "airly",
         "airnow",
         "airq",

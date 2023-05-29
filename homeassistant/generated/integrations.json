@@ -77,6 +77,11 @@
       "config_flow": true,
       "iot_class": "local_polling"
     },
+    "airbolt": {
+      "integration_type": "hub",
+      "config_flow": true,
+      "iot_class": "cloud_polling"
+    },
     "airly": {
       "name": "Airly",
       "integration_type": "service",
@@ -6631,6 +6636,7 @@
     }
   },
   "translated_name": [
+    "airbolt",
     "alert",
     "aurora",
     "cert_expiry",

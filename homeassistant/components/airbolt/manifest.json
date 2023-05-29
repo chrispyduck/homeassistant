@@ -1,0 +1,13 @@
+{
+  "domain": "airbolt",
+  "name": "Airbolt",
+  "codeowners": ["@chrispyduck"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://chrispyduck.github.io/hass-airbolt",
+  "homekit": {},
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "ssdp": [],
+  "zeroconf": []
+}
