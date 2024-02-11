@@ -5,7 +5,6 @@ import asyncio
 from collections.abc import AsyncIterable, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
-from types import MappingProxyType
 from typing import Any
 from unittest.mock import ANY, DEFAULT, Mock, patch
 
@@ -26,7 +25,7 @@ from homeassistant.components.dlna_dmr.const import (
     CONF_CALLBACK_URL_OVERRIDE,
     CONF_LISTEN_PORT,
     CONF_POLL_AVAILABILITY,
-    DOMAIN as DLNA_DOMAIN,
+    DOMAIN,
 )
 from homeassistant.components.dlna_dmr.data import EventListenAddr
 from homeassistant.components.dlna_dmr.media_player import DlnaDmrEntity
@@ -47,9 +46,10 @@ from homeassistant.const import (
     CONF_TYPE,
     CONF_URL,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CoreState, HomeAssistant
 from homeassistant.helpers.device_registry import (
     CONNECTION_NETWORK_MAC,
+    CONNECTION_UPNP,
     async_get as async_get_dr,
 )
 from homeassistant.helpers.entity_component import async_update_entity
@@ -80,7 +80,7 @@ pytestmark = pytest.mark.usefixtures("domain_data_mock")
 async def setup_mock_component(hass: HomeAssistant, mock_entry: MockConfigEntry) -> str:
     """Set up a mock DlnaDmrEntity with the given configuration."""
     mock_entry.add_to_hass(hass)
-    assert await async_setup_component(hass, DLNA_DOMAIN, {}) is True
+    assert await hass.config_entries.async_setup(mock_entry.entry_id) is True
     await hass.async_block_till_done()
 
     entries = async_entries_for_config_entry(async_get_er(hass), mock_entry.entry_id)
@@ -214,8 +214,11 @@ async def test_setup_entry_no_options(
 
     Check that the device is constructed properly as part of the test.
     """
-    config_entry_mock.options = MappingProxyType({})
+    hass.config_entries.async_update_entry(config_entry_mock, options={})
     mock_entity_id = await setup_mock_component(hass, config_entry_mock)
+    await async_update_entity(hass, mock_entity_id)
+    await hass.async_block_till_done()
+
     mock_state = hass.states.get(mock_entity_id)
     assert mock_state is not None
 
@@ -266,25 +269,34 @@ async def test_setup_entry_no_options(
     assert mock_state.state == ha_const.STATE_UNAVAILABLE
 
 
+@pytest.mark.parametrize(
+    "core_state",
+    (CoreState.not_running, CoreState.running),
+)
 async def test_setup_entry_with_options(
     hass: HomeAssistant,
     domain_data_mock: Mock,
     ssdp_scanner_mock: Mock,
     config_entry_mock: MockConfigEntry,
     dmr_device_mock: Mock,
+    core_state: CoreState,
 ) -> None:
     """Test setting options leads to a DlnaDmrEntity with custom event_handler.
 
     Check that the device is constructed properly as part of the test.
     """
-    config_entry_mock.options = MappingProxyType(
-        {
+    hass.set_state(core_state)
+    hass.config_entries.async_update_entry(
+        config_entry_mock,
+        options={
             CONF_LISTEN_PORT: 2222,
             CONF_CALLBACK_URL_OVERRIDE: "http://198.51.100.10/events",
             CONF_POLL_AVAILABILITY: True,
-        }
+        },
     )
     mock_entity_id = await setup_mock_component(hass, config_entry_mock)
+    await async_update_entity(hass, mock_entity_id)
+    await hass.async_block_till_done()
     mock_state = hass.states.get(mock_entity_id)
     assert mock_state is not None
 
@@ -343,11 +355,15 @@ async def test_setup_entry_mac_address(
     dmr_device_mock: Mock,
 ) -> None:
     """Entry with a MAC address will set up and set the device registry connection."""
-    await setup_mock_component(hass, config_entry_mock)
-
+    mock_entity_id = await setup_mock_component(hass, config_entry_mock)
+    await async_update_entity(hass, mock_entity_id)
+    await hass.async_block_till_done()
     # Check the device registry connections for MAC address
     dev_reg = async_get_dr(hass)
-    device = dev_reg.async_get_device(identifiers={(DLNA_DOMAIN, MOCK_DEVICE_UDN)})
+    device = dev_reg.async_get_device(
+        connections={(CONNECTION_UPNP, MOCK_DEVICE_UDN)},
+        identifiers=set(),
+    )
     assert device is not None
     assert (CONNECTION_NETWORK_MAC, MOCK_MAC_ADDRESS) in device.connections
 
@@ -360,11 +376,15 @@ async def test_setup_entry_no_mac_address(
     dmr_device_mock: Mock,
 ) -> None:
     """Test setting up an entry without a MAC address will succeed."""
-    await setup_mock_component(hass, config_entry_mock_no_mac)
-
+    mock_entity_id = await setup_mock_component(hass, config_entry_mock_no_mac)
+    await async_update_entity(hass, mock_entity_id)
+    await hass.async_block_till_done()
     # Check the device registry connections does not include the MAC address
     dev_reg = async_get_dr(hass)
-    device = dev_reg.async_get_device(identifiers={(DLNA_DOMAIN, MOCK_DEVICE_UDN)})
+    device = dev_reg.async_get_device(
+        connections={(CONNECTION_UPNP, MOCK_DEVICE_UDN)},
+        identifiers=set(),
+    )
     assert device is not None
     assert (CONNECTION_NETWORK_MAC, MOCK_MAC_ADDRESS) not in device.connections
 
@@ -376,6 +396,8 @@ async def test_event_subscribe_failure(
     dmr_device_mock.async_subscribe_services.side_effect = UpnpError
 
     mock_entity_id = await setup_mock_component(hass, config_entry_mock)
+    await async_update_entity(hass, mock_entity_id)
+    await hass.async_block_till_done()
     mock_state = hass.states.get(mock_entity_id)
     assert mock_state is not None
 
@@ -406,6 +428,8 @@ async def test_event_subscribe_rejected(
     dmr_device_mock.async_subscribe_services.side_effect = UpnpResponseError(status=501)
 
     mock_entity_id = await setup_mock_component(hass, config_entry_mock)
+    await async_update_entity(hass, mock_entity_id)
+    await hass.async_block_till_done()
     mock_state = hass.states.get(mock_entity_id)
     assert mock_state is not None
 
@@ -426,8 +450,13 @@ async def test_available_device(
 ) -> None:
     """Test a DlnaDmrEntity with a connected DmrDevice."""
     # Check hass device information is filled in
+    await async_update_entity(hass, mock_entity_id)
+    await hass.async_block_till_done()
     dev_reg = async_get_dr(hass)
-    device = dev_reg.async_get_device(identifiers={(DLNA_DOMAIN, MOCK_DEVICE_UDN)})
+    device = dev_reg.async_get_device(
+        connections={(CONNECTION_UPNP, MOCK_DEVICE_UDN)},
+        identifiers=set(),
+    )
     assert device is not None
     # Device properties are set in dmr_device_mock before the entity gets constructed
     assert device.manufacturer == "device_manufacturer"
@@ -1226,14 +1255,20 @@ async def test_playback_update_state(
     dmr_device_mock.async_update.assert_not_awaited()
 
 
+@pytest.mark.parametrize(
+    "core_state",
+    (CoreState.not_running, CoreState.running),
+)
 async def test_unavailable_device(
     hass: HomeAssistant,
     domain_data_mock: Mock,
     ssdp_scanner_mock: Mock,
     config_entry_mock: MockConfigEntry,
+    core_state: CoreState,
 ) -> None:
     """Test a DlnaDmrEntity with out a connected DmrDevice."""
     # Cause connection attempts to fail
+    hass.set_state(core_state)
     domain_data_mock.upnp_factory.async_create_device.side_effect = UpnpConnectionError
 
     with patch(
@@ -1323,8 +1358,13 @@ async def test_unavailable_device(
 
     # Check hass device information has not been filled in yet
     dev_reg = async_get_dr(hass)
-    device = dev_reg.async_get_device(identifiers={(DLNA_DOMAIN, MOCK_DEVICE_UDN)})
-    assert device is None
+    device = dev_reg.async_get_device(
+        connections={(CONNECTION_UPNP, MOCK_DEVICE_UDN)},
+        identifiers=set(),
+    )
+    assert device is not None
+    assert device.name is None
+    assert device.manufacturer is None
 
     # Unload config entry to clean up
     assert await hass.config_entries.async_remove(config_entry_mock.entry_id) == {
@@ -1343,15 +1383,21 @@ async def test_unavailable_device(
     assert mock_state.state == ha_const.STATE_UNAVAILABLE
 
 
+@pytest.mark.parametrize(
+    "core_state",
+    (CoreState.not_running, CoreState.running),
+)
 async def test_become_available(
     hass: HomeAssistant,
     domain_data_mock: Mock,
     ssdp_scanner_mock: Mock,
     config_entry_mock: MockConfigEntry,
     dmr_device_mock: Mock,
+    core_state: CoreState,
 ) -> None:
     """Test a device becoming available after the entity is constructed."""
     # Cause connection attempts to fail before adding entity
+    hass.set_state(core_state)
     domain_data_mock.upnp_factory.async_create_device.side_effect = UpnpConnectionError
     mock_entity_id = await setup_mock_component(hass, config_entry_mock)
     mock_state = hass.states.get(mock_entity_id)
@@ -1360,8 +1406,11 @@ async def test_become_available(
 
     # Check hass device information has not been filled in yet
     dev_reg = async_get_dr(hass)
-    device = dev_reg.async_get_device(identifiers={(DLNA_DOMAIN, MOCK_DEVICE_UDN)})
-    assert device is None
+    device = dev_reg.async_get_device(
+        connections={(CONNECTION_UPNP, MOCK_DEVICE_UDN)},
+        identifiers=set(),
+    )
+    assert device is not None
 
     # Mock device is now available.
     domain_data_mock.upnp_factory.async_create_device.side_effect = None
@@ -1399,7 +1448,10 @@ async def test_become_available(
     assert mock_state.state == MediaPlayerState.IDLE
     # Check hass device information is now filled in
     dev_reg = async_get_dr(hass)
-    device = dev_reg.async_get_device(identifiers={(DLNA_DOMAIN, MOCK_DEVICE_UDN)})
+    device = dev_reg.async_get_device(
+        connections={(CONNECTION_UPNP, MOCK_DEVICE_UDN)},
+        identifiers=set(),
+    )
     assert device is not None
     assert device.manufacturer == "device_manufacturer"
     assert device.model == "device_model_name"
@@ -1422,13 +1474,19 @@ async def test_become_available(
     assert mock_state.state == ha_const.STATE_UNAVAILABLE
 
 
+@pytest.mark.parametrize(
+    "core_state",
+    (CoreState.not_running, CoreState.running),
+)
 async def test_alive_but_gone(
     hass: HomeAssistant,
     domain_data_mock: Mock,
     ssdp_scanner_mock: Mock,
     mock_disconnected_entity_id: str,
+    core_state: CoreState,
 ) -> None:
     """Test a device sending an SSDP alive announcement, but not being connectable."""
+    hass.set_state(core_state)
     domain_data_mock.upnp_factory.async_create_device.side_effect = UpnpError
 
     # Send an SSDP notification from the still missing device
@@ -1963,10 +2021,11 @@ async def test_poll_availability(
     """Test device becomes available and noticed via poll_availability."""
     # Start with a disconnected device and poll_availability=True
     domain_data_mock.upnp_factory.async_create_device.side_effect = UpnpConnectionError
-    config_entry_mock.options = MappingProxyType(
-        {
+    hass.config_entries.async_update_entry(
+        config_entry_mock,
+        options={
             CONF_POLL_AVAILABILITY: True,
-        }
+        },
     )
     mock_entity_id = await setup_mock_component(hass, config_entry_mock)
     mock_state = hass.states.get(mock_entity_id)
@@ -2231,7 +2290,10 @@ async def test_config_update_mac_address(
 
     # Check the device registry connections does not include the MAC address
     dev_reg = async_get_dr(hass)
-    device = dev_reg.async_get_device(identifiers={(DLNA_DOMAIN, MOCK_DEVICE_UDN)})
+    device = dev_reg.async_get_device(
+        connections={(CONNECTION_UPNP, MOCK_DEVICE_UDN)},
+        identifiers=set(),
+    )
     assert device is not None
     assert (CONNECTION_NETWORK_MAC, MOCK_MAC_ADDRESS) not in device.connections
 
@@ -2248,6 +2310,168 @@ async def test_config_update_mac_address(
     await hass.async_block_till_done()
 
     # Device registry connections should now include the MAC address
-    device = dev_reg.async_get_device(identifiers={(DLNA_DOMAIN, MOCK_DEVICE_UDN)})
+    device = dev_reg.async_get_device(
+        connections={(CONNECTION_UPNP, MOCK_DEVICE_UDN)},
+        identifiers=set(),
+    )
     assert device is not None
     assert (CONNECTION_NETWORK_MAC, MOCK_MAC_ADDRESS) in device.connections
+
+
+@pytest.mark.parametrize(
+    "core_state",
+    (CoreState.not_running, CoreState.running),
+)
+async def test_connections_restored(
+    hass: HomeAssistant,
+    domain_data_mock: Mock,
+    ssdp_scanner_mock: Mock,
+    config_entry_mock: MockConfigEntry,
+    dmr_device_mock: Mock,
+    core_state: CoreState,
+) -> None:
+    """Test previous connections restored."""
+    # Cause connection attempts to fail before adding entity
+    hass.set_state(core_state)
+    domain_data_mock.upnp_factory.async_create_device.side_effect = UpnpConnectionError
+    mock_entity_id = await setup_mock_component(hass, config_entry_mock)
+    mock_state = hass.states.get(mock_entity_id)
+    assert mock_state is not None
+    assert mock_state.state == ha_const.STATE_UNAVAILABLE
+
+    # Check hass device information has not been filled in yet
+    dev_reg = async_get_dr(hass)
+    device = dev_reg.async_get_device(
+        connections={(CONNECTION_UPNP, MOCK_DEVICE_UDN)},
+        identifiers=set(),
+    )
+    assert device is not None
+
+    # Mock device is now available.
+    domain_data_mock.upnp_factory.async_create_device.side_effect = None
+    domain_data_mock.upnp_factory.async_create_device.reset_mock()
+
+    # Send an SSDP notification from the now alive device
+    ssdp_callback = ssdp_scanner_mock.async_register_callback.call_args.args[0]
+    await ssdp_callback(
+        ssdp.SsdpServiceInfo(
+            ssdp_usn=MOCK_DEVICE_USN,
+            ssdp_location=NEW_DEVICE_LOCATION,
+            ssdp_st=MOCK_DEVICE_TYPE,
+            upnp={},
+        ),
+        ssdp.SsdpChange.ALIVE,
+    )
+    await hass.async_block_till_done()
+
+    # Check device was created from the supplied URL
+    domain_data_mock.upnp_factory.async_create_device.assert_awaited_once_with(
+        NEW_DEVICE_LOCATION
+    )
+    # Check event notifiers are acquired
+    domain_data_mock.async_get_event_notifier.assert_awaited_once_with(
+        EventListenAddr(LOCAL_IP, 0, None), hass
+    )
+    # Check UPnP services are subscribed
+    dmr_device_mock.async_subscribe_services.assert_awaited_once_with(
+        auto_resubscribe=True
+    )
+    assert dmr_device_mock.on_event is not None
+    # Quick check of the state to verify the entity has a connected DmrDevice
+    mock_state = hass.states.get(mock_entity_id)
+    assert mock_state is not None
+    assert mock_state.state == MediaPlayerState.IDLE
+    # Check hass device information is now filled in
+    dev_reg = async_get_dr(hass)
+    device = dev_reg.async_get_device(
+        connections={(CONNECTION_UPNP, MOCK_DEVICE_UDN)},
+        identifiers=set(),
+    )
+    assert device is not None
+    previous_connections = device.connections
+    assert device.manufacturer == "device_manufacturer"
+    assert device.model == "device_model_name"
+    assert device.name == "device_name"
+
+    # Reload the config entry
+    assert await hass.config_entries.async_reload(config_entry_mock.entry_id)
+    await async_update_entity(hass, mock_entity_id)
+
+    # Confirm SSDP notifications unregistered
+    assert ssdp_scanner_mock.async_register_callback.return_value.call_count == 2
+
+    # Confirm the entity has disconnected from the device
+    domain_data_mock.async_release_event_notifier.assert_awaited_once()
+    dmr_device_mock.async_unsubscribe_services.assert_awaited_once()
+
+    # Check hass device information has not been filled in yet
+    dev_reg = async_get_dr(hass)
+    device = dev_reg.async_get_device(
+        connections={(CONNECTION_UPNP, MOCK_DEVICE_UDN)},
+        identifiers=set(),
+    )
+    assert device is not None
+    assert device.connections == previous_connections
+
+    # Verify the entity remains linked to the device
+    ent_reg = async_get_er(hass)
+    entry = ent_reg.async_get(mock_entity_id)
+    assert entry is not None
+    assert entry.device_id == device.id
+
+    # Verify the entity has an idle state
+    mock_state = hass.states.get(mock_entity_id)
+    assert mock_state is not None
+    assert mock_state.state == MediaPlayerState.IDLE
+
+    # Unload config entry to clean up
+    assert await hass.config_entries.async_unload(config_entry_mock.entry_id)
+
+
+async def test_udn_upnp_connection_added_if_missing(
+    hass: HomeAssistant,
+    domain_data_mock: Mock,
+    ssdp_scanner_mock: Mock,
+    config_entry_mock: MockConfigEntry,
+    dmr_device_mock: Mock,
+) -> None:
+    """Test missing upnp connection added.
+
+    We did not always add the upnp connection to the device registry, so we need to
+    check that it is added if missing as otherwise we might end up creating a new
+    device entry.
+    """
+    config_entry_mock.add_to_hass(hass)
+
+    # Cause connection attempts to fail before adding entity
+    ent_reg = async_get_er(hass)
+    entry = ent_reg.async_get_or_create(
+        MP_DOMAIN,
+        DOMAIN,
+        MOCK_DEVICE_UDN,
+        config_entry=config_entry_mock,
+    )
+    mock_entity_id = entry.entity_id
+
+    dev_reg = async_get_dr(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry_mock.entry_id,
+        connections={(CONNECTION_NETWORK_MAC, MOCK_MAC_ADDRESS)},
+        identifiers=set(),
+    )
+
+    ent_reg.async_update_entity(mock_entity_id, device_id=device.id)
+
+    domain_data_mock.upnp_factory.async_create_device.side_effect = UpnpConnectionError
+    assert await hass.config_entries.async_setup(config_entry_mock.entry_id) is True
+    await hass.async_block_till_done()
+
+    mock_state = hass.states.get(mock_entity_id)
+    assert mock_state is not None
+    assert mock_state.state == ha_const.STATE_UNAVAILABLE
+
+    # Check hass device information has not been filled in yet
+    dev_reg = async_get_dr(hass)
+    device = dev_reg.async_get(device.id)
+    assert device is not None
+    assert (CONNECTION_UPNP, MOCK_DEVICE_UDN) in device.connections

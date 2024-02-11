@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from typing import Any
 
 import aiohttp
-import async_timeout
 from sharkiq import SharkIqAuthError, get_ayla_api
 import voluptuous as vol
 
@@ -51,10 +50,10 @@ async def _validate_input(
     )
 
     try:
-        async with async_timeout.timeout(10):
+        async with asyncio.timeout(10):
             LOGGER.debug("Initialize connection to Ayla networks API")
             await ayla_api.async_sign_in()
-    except (asyncio.TimeoutError, aiohttp.ClientError, TypeError) as error:
+    except (TimeoutError, aiohttp.ClientError, TypeError) as error:
         LOGGER.error(error)
         raise CannotConnect(
             "Unable to connect to SharkIQ services.  Check your region settings."

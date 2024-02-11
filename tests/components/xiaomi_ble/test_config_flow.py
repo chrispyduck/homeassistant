@@ -1,5 +1,4 @@
 """Test the Xiaomi config flow."""
-import asyncio
 from unittest.mock import patch
 
 from xiaomi_ble import XiaomiBluetoothDeviceData as DeviceData
@@ -50,7 +49,7 @@ async def test_async_step_bluetooth_valid_device_but_missing_payload(
     """Test discovery via bluetooth with a valid device but missing payload."""
     with patch(
         "homeassistant.components.xiaomi_ble.config_flow.async_process_advertisements",
-        side_effect=asyncio.TimeoutError(),
+        side_effect=TimeoutError(),
     ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN,
@@ -248,7 +247,7 @@ async def test_async_step_bluetooth_valid_device_v4_encryption(
         )
 
     assert result2["type"] == FlowResultType.CREATE_ENTRY
-    assert result2["title"] == "Thermometer 9CBC (JTYJGD03MI)"
+    assert result2["title"] == "Smoke Detector 9CBC (JTYJGD03MI)"
     assert result2["data"] == {"bindkey": "5b51a7c91cde6707c9ef18dfda143a58"}
     assert result2["result"].unique_id == "54:EF:44:E3:9C:BC"
 
@@ -284,7 +283,7 @@ async def test_async_step_bluetooth_valid_device_v4_encryption_wrong_key(
         )
 
     assert result2["type"] == FlowResultType.CREATE_ENTRY
-    assert result2["title"] == "Thermometer 9CBC (JTYJGD03MI)"
+    assert result2["title"] == "Smoke Detector 9CBC (JTYJGD03MI)"
     assert result2["data"] == {"bindkey": "5b51a7c91cde6707c9ef18dfda143a58"}
     assert result2["result"].unique_id == "54:EF:44:E3:9C:BC"
 
@@ -320,7 +319,7 @@ async def test_async_step_bluetooth_valid_device_v4_encryption_wrong_key_length(
         )
 
     assert result2["type"] == FlowResultType.CREATE_ENTRY
-    assert result2["title"] == "Thermometer 9CBC (JTYJGD03MI)"
+    assert result2["title"] == "Smoke Detector 9CBC (JTYJGD03MI)"
     assert result2["data"] == {"bindkey": "5b51a7c91cde6707c9ef18dfda143a58"}
     assert result2["result"].unique_id == "54:EF:44:E3:9C:BC"
 
@@ -402,7 +401,7 @@ async def test_async_step_user_short_payload(hass: HomeAssistant) -> None:
     assert result["step_id"] == "user"
     with patch(
         "homeassistant.components.xiaomi_ble.config_flow.async_process_advertisements",
-        side_effect=asyncio.TimeoutError(),
+        side_effect=TimeoutError(),
     ):
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"],
@@ -501,7 +500,7 @@ async def test_async_step_user_with_found_devices_v4_encryption(
         )
 
     assert result2["type"] == FlowResultType.CREATE_ENTRY
-    assert result2["title"] == "Thermometer 9CBC (JTYJGD03MI)"
+    assert result2["title"] == "Smoke Detector 9CBC (JTYJGD03MI)"
     assert result2["data"] == {"bindkey": "5b51a7c91cde6707c9ef18dfda143a58"}
     assert result2["result"].unique_id == "54:EF:44:E3:9C:BC"
 
@@ -549,7 +548,7 @@ async def test_async_step_user_with_found_devices_v4_encryption_wrong_key(
         )
 
     assert result2["type"] == FlowResultType.CREATE_ENTRY
-    assert result2["title"] == "Thermometer 9CBC (JTYJGD03MI)"
+    assert result2["title"] == "Smoke Detector 9CBC (JTYJGD03MI)"
     assert result2["data"] == {"bindkey": "5b51a7c91cde6707c9ef18dfda143a58"}
     assert result2["result"].unique_id == "54:EF:44:E3:9C:BC"
 
@@ -599,7 +598,7 @@ async def test_async_step_user_with_found_devices_v4_encryption_wrong_key_length
         )
 
     assert result2["type"] == FlowResultType.CREATE_ENTRY
-    assert result2["title"] == "Thermometer 9CBC (JTYJGD03MI)"
+    assert result2["title"] == "Smoke Detector 9CBC (JTYJGD03MI)"
     assert result2["data"] == {"bindkey": "5b51a7c91cde6707c9ef18dfda143a58"}
     assert result2["result"].unique_id == "54:EF:44:E3:9C:BC"
 

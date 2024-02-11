@@ -8,7 +8,6 @@ import logging
 from typing import Any
 
 from aiohttp.client_exceptions import ClientConnectorError
-import async_timeout
 from nettigo_air_monitor import (
     ApiError,
     AuthFailedError,
@@ -51,7 +50,7 @@ async def async_get_config(hass: HomeAssistant, host: str) -> NamConfig:
     options = ConnectionOptions(host)
     nam = await NettigoAirMonitor.create(websession, options)
 
-    async with async_timeout.timeout(10):
+    async with asyncio.timeout(10):
         mac = await nam.async_get_mac_address()
 
     return NamConfig(mac, nam.auth_enabled)
@@ -67,7 +66,7 @@ async def async_check_credentials(
 
     nam = await NettigoAirMonitor.create(websession, options)
 
-    async with async_timeout.timeout(10):
+    async with asyncio.timeout(10):
         await nam.async_check_credentials()
 
 
@@ -93,7 +92,7 @@ class NAMFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
             try:
                 config = await async_get_config(self.hass, self.host)
-            except (ApiError, ClientConnectorError, asyncio.TimeoutError):
+            except (ApiError, ClientConnectorError, TimeoutError):
                 errors["base"] = "cannot_connect"
             except CannotGetMacError:
                 return self.async_abort(reason="device_unsupported")
@@ -129,7 +128,7 @@ class NAMFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 await async_check_credentials(self.hass, self.host, user_input)
             except AuthFailedError:
                 errors["base"] = "invalid_auth"
-            except (ApiError, ClientConnectorError, asyncio.TimeoutError):
+            except (ApiError, ClientConnectorError, TimeoutError):
                 errors["base"] = "cannot_connect"
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception")
@@ -156,7 +155,7 @@ class NAMFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         try:
             self._config = await async_get_config(self.hass, self.host)
-        except (ApiError, ClientConnectorError, asyncio.TimeoutError):
+        except (ApiError, ClientConnectorError, TimeoutError):
             return self.async_abort(reason="cannot_connect")
         except CannotGetMacError:
             return self.async_abort(reason="device_unsupported")
@@ -210,7 +209,7 @@ class NAMFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 ApiError,
                 AuthFailedError,
                 ClientConnectorError,
-                asyncio.TimeoutError,
+                TimeoutError,
             ):
                 return self.async_abort(reason="reauth_unsuccessful")
 

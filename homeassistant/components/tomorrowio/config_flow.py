@@ -56,13 +56,12 @@ def _get_config_schema(
         vol.Required(CONF_API_KEY, default=input_dict.get(CONF_API_KEY)): str,
     }
 
-    default_location = (
-        input_dict[CONF_LOCATION]
-        if CONF_LOCATION in input_dict
-        else {
+    default_location = input_dict.get(
+        CONF_LOCATION,
+        {
             CONF_LATITUDE: hass.config.latitude,
             CONF_LONGITUDE: hass.config.longitude,
-        }
+        },
     )
     return vol.Schema(
         {
@@ -102,7 +101,7 @@ class TomorrowioOptionsConfigFlow(config_entries.OptionsFlow):
             vol.Required(
                 CONF_TIMESTEP,
                 default=self._config_entry.options[CONF_TIMESTEP],
-            ): vol.In([1, 5, 15, 30]),
+            ): vol.In([1, 5, 15, 30, 60]),
         }
 
         return self.async_show_form(

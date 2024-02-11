@@ -17,29 +17,34 @@ from homeassistant.exceptions import HomeAssistantError
 
 from . import init_integration, register_device, register_entity
 
-from tests.common import mock_restore_cache
+from tests.common import mock_restore_cache_with_extra_data
 
 DEVICE_BLOCK_ID = 4
 
 
 async def test_block_number_update(
-    hass: HomeAssistant, mock_block_device, monkeypatch
+    hass: HomeAssistant, mock_block_device, entity_registry, monkeypatch
 ) -> None:
     """Test block device number update."""
+    entity_id = "number.test_name_valve_position"
     await init_integration(hass, 1, sleep_period=1000)
 
-    assert hass.states.get("number.test_name_valve_position") is None
+    assert hass.states.get(entity_id) is None
 
     # Make device online
     mock_block_device.mock_update()
     await hass.async_block_till_done()
 
-    assert hass.states.get("number.test_name_valve_position").state == "50"
+    assert hass.states.get(entity_id).state == "50"
 
     monkeypatch.setattr(mock_block_device.blocks[DEVICE_BLOCK_ID], "valvePos", 30)
     mock_block_device.mock_update()
 
-    assert hass.states.get("number.test_name_valve_position").state == "30"
+    assert hass.states.get(entity_id).state == "30"
+
+    entry = entity_registry.async_get(entity_id)
+    assert entry
+    assert entry.unique_id == "123456789ABC-device_0-valvePos"
 
 
 async def test_block_restored_number(
@@ -62,7 +67,14 @@ async def test_block_restored_number(
         entry,
         capabilities,
     )
-    mock_restore_cache(hass, [State(entity_id, "40")])
+    extra_data = {
+        "native_max_value": 100,
+        "native_min_value": 0,
+        "native_step": 1,
+        "native_unit_of_measurement": "%",
+        "native_value": "40",
+    }
+    mock_restore_cache_with_extra_data(hass, ((State(entity_id, ""), extra_data),))
 
     monkeypatch.setattr(mock_block_device, "initialized", False)
     await hass.config_entries.async_setup(entry.entry_id)
@@ -179,6 +191,7 @@ async def test_block_set_value_auth_error(
         {ATTR_ENTITY_ID: "number.test_name_valve_position", ATTR_VALUE: 30},
         blocking=True,
     )
+    await hass.async_block_till_done()
 
     assert entry.state == ConfigEntryState.LOADED
 

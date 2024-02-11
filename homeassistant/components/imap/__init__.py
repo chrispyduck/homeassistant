@@ -1,8 +1,6 @@
 """The imap integration."""
 from __future__ import annotations
 
-import asyncio
-
 from aioimaplib import IMAP4_SSL, AioImapException
 
 from homeassistant.config_entries import ConfigEntry
@@ -14,7 +12,7 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
 )
 
-from .const import DOMAIN
+from .const import CONF_ENABLE_PUSH, DOMAIN
 from .coordinator import (
     ImapPollingDataUpdateCoordinator,
     ImapPushDataUpdateCoordinator,
@@ -33,13 +31,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryAuthFailed from err
     except InvalidFolder as err:
         raise ConfigEntryError("Selected mailbox folder is invalid.") from err
-    except (asyncio.TimeoutError, AioImapException) as err:
+    except (TimeoutError, AioImapException) as err:
         raise ConfigEntryNotReady from err
 
     coordinator_class: type[
         ImapPushDataUpdateCoordinator | ImapPollingDataUpdateCoordinator
     ]
-    if imap_client.has_capability("IDLE"):
+    enable_push: bool = entry.data.get(CONF_ENABLE_PUSH, True)
+    if enable_push and imap_client.has_capability("IDLE"):
         coordinator_class = ImapPushDataUpdateCoordinator
     else:
         coordinator_class = ImapPollingDataUpdateCoordinator
@@ -65,8 +64,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         coordinator: ImapPushDataUpdateCoordinator | ImapPollingDataUpdateCoordinator = hass.data[
             DOMAIN
-        ].pop(
-            entry.entry_id
-        )
+        ].pop(entry.entry_id)
         await coordinator.shutdown()
     return unload_ok

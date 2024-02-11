@@ -2,6 +2,7 @@
 import asyncio
 from collections.abc import Generator
 from copy import copy
+from ipaddress import ip_address
 from unittest.mock import DEFAULT, MagicMock, call, patch
 
 import aiohttp
@@ -373,7 +374,7 @@ async def test_supervisor_discovery(
 
 @pytest.mark.parametrize(
     ("discovery_info", "server_version_side_effect"),
-    [({"config": ADDON_DISCOVERY_INFO}, asyncio.TimeoutError())],
+    [({"config": ADDON_DISCOVERY_INFO}, TimeoutError())],
 )
 async def test_supervisor_discovery_cannot_connect(
     hass: HomeAssistant, supervisor, get_addon_discovery_info
@@ -1113,7 +1114,7 @@ async def test_addon_running(
         (
             {"config": ADDON_DISCOVERY_INFO},
             None,
-            asyncio.TimeoutError,
+            TimeoutError,
             None,
             "cannot_connect",
         ),
@@ -1365,7 +1366,7 @@ async def test_addon_installed_start_failure(
     [
         (
             {"config": ADDON_DISCOVERY_INFO},
-            asyncio.TimeoutError,
+            TimeoutError,
         ),
         (
             None,
@@ -2672,8 +2673,8 @@ async def test_zeroconf(hass: HomeAssistant) -> None:
         DOMAIN,
         context={"source": config_entries.SOURCE_ZEROCONF},
         data=ZeroconfServiceInfo(
-            host="localhost",
-            addresses=["127.0.0.1"],
+            ip_address=ip_address("127.0.0.1"),
+            ip_addresses=[ip_address("127.0.0.1")],
             hostname="mock_hostname",
             name="mock_name",
             port=3000,
@@ -2697,7 +2698,7 @@ async def test_zeroconf(hass: HomeAssistant) -> None:
     assert result["type"] == "create_entry"
     assert result["title"] == TITLE
     assert result["data"] == {
-        "url": "ws://localhost:3000",
+        "url": "ws://127.0.0.1:3000",
         "usb_path": None,
         "s0_legacy_key": None,
         "s2_access_control_key": None,

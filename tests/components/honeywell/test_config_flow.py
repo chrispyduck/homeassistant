@@ -1,5 +1,4 @@
 """Tests for honeywell config flow."""
-import asyncio
 from unittest.mock import MagicMock, patch
 
 import aiosomecomfort
@@ -156,14 +155,14 @@ async def test_reauth_flow(hass: HomeAssistant) -> None:
     ):
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {CONF_PASSWORD: "new-password"},
+            {CONF_USERNAME: "new-username", CONF_PASSWORD: "new-password"},
         )
         await hass.async_block_till_done()
 
     assert result2["type"] == FlowResultType.ABORT
     assert result2["reason"] == "reauth_successful"
     assert mock_entry.data == {
-        CONF_USERNAME: "test-username",
+        CONF_USERNAME: "new-username",
         CONF_PASSWORD: "new-password",
     }
 
@@ -200,7 +199,7 @@ async def test_reauth_flow_auth_error(hass: HomeAssistant, client: MagicMock) ->
     ):
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {CONF_PASSWORD: "new-password"},
+            {CONF_USERNAME: "new-username", CONF_PASSWORD: "new-password"},
         )
         await hass.async_block_till_done()
 
@@ -213,7 +212,7 @@ async def test_reauth_flow_auth_error(hass: HomeAssistant, client: MagicMock) ->
     [
         aiosomecomfort.device.ConnectionError,
         aiosomecomfort.device.ConnectionTimeout,
-        asyncio.TimeoutError,
+        TimeoutError,
     ],
 )
 async def test_reauth_flow_connnection_error(
@@ -246,7 +245,7 @@ async def test_reauth_flow_connnection_error(
 
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {CONF_PASSWORD: "new-password"},
+        {CONF_USERNAME: "new-username", CONF_PASSWORD: "new-password"},
     )
     await hass.async_block_till_done()
 

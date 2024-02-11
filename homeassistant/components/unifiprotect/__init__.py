@@ -1,7 +1,6 @@
 """UniFi Protect Platform."""
 from __future__ import annotations
 
-import asyncio
 from datetime import timedelta
 import logging
 
@@ -12,7 +11,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import device_registry as dr, issue_registry as ir
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    issue_registry as ir,
+)
 from homeassistant.helpers.issue_registry import IssueSeverity
 from homeassistant.helpers.typing import ConfigType
 
@@ -40,6 +43,8 @@ _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL)
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the UniFi Protect."""
@@ -58,7 +63,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         nvr_info = await protect.get_nvr()
     except NotAuthorized as err:
         raise ConfigEntryAuthFailed(err) from err
-    except (asyncio.TimeoutError, ClientError, ServerDisconnectedError) as err:
+    except (TimeoutError, ClientError, ServerDisconnectedError) as err:
         raise ConfigEntryNotReady from err
 
     if nvr_info.version < MIN_REQUIRED_PROTECT_V:

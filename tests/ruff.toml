@@ -1,6 +1,7 @@
 # This extend our general Ruff rules specifically for tests
 extend = "../pyproject.toml"
 
+[lint]
 extend-select = [
     "PT001", # Use @pytest.fixture without parentheses
     "PT002", # Configuration for fixture specified via positional args, use kwargs
@@ -10,4 +11,29 @@ extend-select = [
     "PT015", # Assertion always fails, replace with pytest.fail()
     "PT021", # use yield instead of request.addfinalizer
     "PT022", # No teardown in fixture, replace useless yield with return
+]
+
+extend-ignore = [
+    "PLC", # pylint
+    "PLE", # pylint
+    "PLR", # pylint
+    "PLW", # pylint
+    "B904", # Use raise from to specify exception cause
+    "N815", # Variable {name} in class scope should not be mixedCase
+]
+
+[lint.isort]
+known-first-party = [
+    "homeassistant",
+    "tests",
+    "script",
+]
+known-third-party = [
+    "syrupy",
+    "pytest",
+    "voluptuous",
+    "pylint",
+]
+forced-separate = [
+    "tests",
 ]

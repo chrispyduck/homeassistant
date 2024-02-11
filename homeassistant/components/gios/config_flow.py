@@ -5,7 +5,6 @@ import asyncio
 from typing import Any
 
 from aiohttp.client_exceptions import ClientConnectorError
-from async_timeout import timeout
 from gios import ApiError, Gios, InvalidSensorsDataError, NoStationError
 import voluptuous as vol
 
@@ -37,7 +36,7 @@ class GiosFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
                 websession = async_get_clientsession(self.hass)
 
-                async with timeout(API_TIMEOUT):
+                async with asyncio.timeout(API_TIMEOUT):
                     gios = Gios(user_input[CONF_STATION_ID], websession)
                     await gios.async_update()
 
@@ -46,7 +45,7 @@ class GiosFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     title=gios.station_name,
                     data=user_input,
                 )
-            except (ApiError, ClientConnectorError, asyncio.TimeoutError):
+            except (ApiError, ClientConnectorError, TimeoutError):
                 errors["base"] = "cannot_connect"
             except NoStationError:
                 errors[CONF_STATION_ID] = "wrong_station_id"

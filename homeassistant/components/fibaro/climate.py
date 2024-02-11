@@ -21,7 +21,7 @@ from homeassistant.const import ATTR_TEMPERATURE, Platform, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import FIBARO_DEVICES, FibaroDevice
+from . import FibaroController, FibaroDevice
 from .const import DOMAIN
 
 PRESET_RESUME = "resume"
@@ -113,12 +113,11 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Perform the setup for Fibaro controller devices."""
+    controller: FibaroController = hass.data[DOMAIN][entry.entry_id]
     async_add_entities(
         [
             FibaroThermostat(device)
-            for device in hass.data[DOMAIN][entry.entry_id][FIBARO_DEVICES][
-                Platform.CLIMATE
-            ]
+            for device in controller.fibaro_devices[Platform.CLIMATE]
         ],
         True,
     )
@@ -126,6 +125,8 @@ async def async_setup_entry(
 
 class FibaroThermostat(FibaroDevice, ClimateEntity):
     """Representation of a Fibaro Thermostat."""
+
+    _enable_turn_on_off_backwards_compatibility = False
 
     def __init__(self, fibaro_device: DeviceModel) -> None:
         """Initialize the Fibaro device."""
@@ -210,6 +211,11 @@ class FibaroThermostat(FibaroDevice, ClimateEntity):
                     if mode in OPMODES_PRESET:
                         self._attr_preset_modes.append(OPMODES_PRESET[mode])
 
+        if HVACMode.OFF in self._attr_hvac_modes and len(self._attr_hvac_modes) > 1:
+            self._attr_supported_features |= (
+                ClimateEntityFeature.TURN_OFF | ClimateEntityFeature.TURN_ON
+            )
+
     async def async_added_to_hass(self) -> None:
         """Call when entity is added to hass."""
         _LOGGER.debug(
@@ -263,7 +269,7 @@ class FibaroThermostat(FibaroDevice, ClimateEntity):
         return device.mode
 
     @property
-    def hvac_mode(self) -> HVACMode | str | None:
+    def hvac_mode(self) -> HVACMode | None:
         """Return hvac operation ie. heat, cool, idle."""
         fibaro_operation_mode = self.fibaro_op_mode
         if isinstance(fibaro_operation_mode, str):

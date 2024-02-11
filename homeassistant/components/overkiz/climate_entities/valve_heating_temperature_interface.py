@@ -55,6 +55,7 @@ class ValveHeatingTemperatureInterface(OverkizEntity, ClimateEntity):
     )
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_translation_key = DOMAIN
+    _enable_turn_on_off_backwards_compatibility = False
 
     def __init__(
         self, device_url: str, coordinator: OverkizDataUpdateCoordinator
@@ -73,7 +74,7 @@ class ValveHeatingTemperatureInterface(OverkizEntity, ClimateEntity):
         )
 
     @property
-    def hvac_action(self) -> str:
+    def hvac_action(self) -> HVACAction:
         """Return the current running hvac operation."""
         return OVERKIZ_TO_HVAC_ACTION[
             cast(str, self.executor.select_state(OverkizState.CORE_OPEN_CLOSED_VALVE))

@@ -23,6 +23,7 @@ from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
 )
+from homeassistant.util.enum import try_parse_enum
 
 from . import HomeAssistantBSBLANData
 from .const import ATTR_TARGET_TEMPERATURE, DOMAIN, LOGGER
@@ -59,8 +60,7 @@ async def async_setup_entry(
                 data.static,
                 entry,
             )
-        ],
-        True,
+        ]
     )
 
 
@@ -70,14 +70,19 @@ class BSBLANClimate(
     """Defines a BSBLAN climate device."""
 
     _attr_has_entity_name = True
+    _attr_name = None
     # Determine preset modes
     _attr_supported_features = (
-        ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE
+        ClimateEntityFeature.TARGET_TEMPERATURE
+        | ClimateEntityFeature.PRESET_MODE
+        | ClimateEntityFeature.TURN_OFF
+        | ClimateEntityFeature.TURN_ON
     )
     _attr_preset_modes = PRESET_MODES
 
     # Determine hvac modes
     _attr_hvac_modes = HVAC_MODES
+    _enable_turn_on_off_backwards_compatibility = False
 
     def __init__(
         self,
@@ -104,6 +109,10 @@ class BSBLANClimate(
     @property
     def current_temperature(self) -> float | None:
         """Return the current temperature."""
+        if self.coordinator.data.current_temperature.value == "---":
+            # device returns no current temperature
+            return None
+
         return float(self.coordinator.data.current_temperature.value)
 
     @property
@@ -112,12 +121,11 @@ class BSBLANClimate(
         return float(self.coordinator.data.target_temperature.value)
 
     @property
-    def hvac_mode(self) -> str:
+    def hvac_mode(self) -> HVACMode | None:
         """Return hvac operation ie. heat, cool mode."""
         if self.coordinator.data.hvac_mode.value == PRESET_ECO:
             return HVACMode.AUTO
-
-        return self.coordinator.data.hvac_mode.value
+        return try_parse_enum(HVACMode, self.coordinator.data.hvac_mode.value)
 
     @property
     def preset_mode(self) -> str | None:

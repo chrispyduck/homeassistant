@@ -1,5 +1,4 @@
 """The tests for the openalpr cloud platform."""
-import asyncio
 from unittest.mock import PropertyMock, patch
 
 import pytest
@@ -157,7 +156,7 @@ async def test_openalpr_process_image(
     ]
     assert len(event_data) == 1
     assert event_data[0]["plate"] == "H786P0J"
-    assert event_data[0]["confidence"] == float(90.436699)
+    assert event_data[0]["confidence"] == 90.436699
     assert event_data[0]["entity_id"] == "image_processing.test_local"
 
 
@@ -193,7 +192,7 @@ async def test_openalpr_process_image_api_timeout(
     aioclient_mock: AiohttpClientMocker,
 ) -> None:
     """Set up and scan a picture and test api error."""
-    aioclient_mock.post(OPENALPR_API_URL, params=PARAMS, exc=asyncio.TimeoutError())
+    aioclient_mock.post(OPENALPR_API_URL, params=PARAMS, exc=TimeoutError())
 
     with patch(
         "homeassistant.components.camera.async_get_image",
